@@ -1,0 +1,1 @@
+"0","plot(bev$Date, -resid(model_95) + log(bev$BEV), type='l', col='blue')"

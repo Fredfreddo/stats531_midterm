@@ -1,0 +1,287 @@
+---
+title: "hw3_fangqing"
+author: "Fangqing Yuan"
+date: "2024-02-05"
+output: 
+  rmarkdown::html_document:
+    toc: TRUE
+    toc_float:
+      collapsed: True
+      smooth_scroll: True
+    theme: flatly
+    highlight: tango
+    code_folding: hide
+---
+
+```{r setup, include=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+# 1, Introduction
+
+## Data description:
+
+The data is from [www.usclimatedata.com](https://www.usclimatedata.com/climate/ann-arbor/michigan/united-states/usmi0028)[1]. It includes several weather information of Ann Arbor each year during 1900 to 2023. The report will focus on analyzing the column "Low", which represents the low temperature from each January in Fahrenheit, primarily as a time series. 
+
+## Data visualization
+
+```{r}
+library(knitr)
+library(funtimes)
+set.seed(531)
+x <- read.table(file="http://ionides.github.io/531w24/01/ann_arbor_weather.csv",header=TRUE)
+plot(Low~Year,data=x,type="l")
+```
+
+## Data Statistics
+
+```{r}
+summary(x[c('Year', 'Low')])
+```
+The plot and statistics confirm that the data if from year 1900 to 2023, but there is a NA in Low, which we will deal with it later.
+
+# 2, Data Analysis
+
+Looking at the plot and statistics of the data:
+
+- There is a NA value at about year 1955;
+- There is no obvious trend;
+- The temperature varies from -22 to +19 degrees with a mean value -2.829;
+- The variance of the data may be changing over time;
+
+## Deal with Na value(s)
+
+```{r results='hide'}
+which(is.na(x$Low))+1900-1
+```
+
+We identified the year with NA is 1955. After learning about several [data imputation methods](https://medium.com/@aaabulkhair/data-imputation-demystified-time-series-data-69bc9c798cb7)[2], we are prone to use the mean or median value of the data for year 1955, as there is no obvious trend in the data, and it seems extravagant to use other computational-complex methods. Another simple option is to leave the NA as it was, because the [arima function](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/arima.html)[3] is able to [handle](https://www.tandfonline.com/doi/abs/10.1080/00401706.1980.10486171)[4] missing values itself.
+
+Our final decision is to use the median value to fill the NA, as we believe its impact on model fitting and analysis could be ignored, and having no NA would let us apply some R functions conveniently.
+
+```{r}
+x[which(is.na(x$Low)),]$Low=median(x$Low, na.rm=TRUE)
+```
+
+## Test for trend
+
+The time series, after filling the NA, is shown as:
+
+```{r}
+plot(Low~Year,data=x,type="l")
+```
+```{r results='hide'}
+trend_test = notrend_test(x$Low)
+c(trend_test$statistic, trend_test$p.value)
+```
+
+We performed [Sieve Bootstrap Based Test for the Null Hypothesis of no Trend](https://search.r-project.org/CRAN/refmans/funtimes/html/notrend_test.html)[4], the Student's t-test statistics and p-value suggested that we cannot reject the hypothesis that there is no linear trend in the data. 
+
+## Autocorrelations
+
+```{r}
+acf(x$Low)
+```
+
+```{r}
+pacf(x$Low)
+```
+
+An autocorrelation and partial autocorrelation function plots of the data are shown above. They indicate no significant autocorrelation except for when lag equals to 15. However, the autocorrelation at lag=15 is only slightly over the 95% coverage interval, so we decide to not focus on it. Overall, there seems to be no seasonality in the data.
+
+# 3, Models
+
+## Models fitting and AIC
+
+We start to try fitting the model with some ARMA(p,q) models with small p and q, as the model is likely not to have linear trend, seasonality, and large autocorrelation. 
+
+ARMA models with different (p, q) are being fitted and evaluated by Akaike Information Criterion ([AIC](https://en.wikipedia.org/wiki/Akaike_information_criterion))[5]. An ARMA(p, q) is defined as the following:
+
+$$
+Y_n = \mu + \sum_{i=1}^{p} \phi_i(Y_{n-i}-\mu)+\epsilon_n+\sum_{j=1}^{q} \psi_j\epsilon_{n-j}+....
+$$
+
+Where $Y_i$ is the random variable for the Low temperature at time year $i$, $\mu$ is a constant stands for the mean value, $\epsilon_i$ is a white noise process with normal distribution with mean 0 and variance $\sigma^2$, $\phi_i$ and $\psi_j$ are coefficients for the model. 
+
+Here is the table showing the AIC of fitted models with p, q ranging from 0 to 4.
+
+```{r}
+aic.table <- function(data, P, Q){
+  table <- matrix(NA, (P+1), (Q+1))
+  for(p in 0:P){
+    for(q in 0:Q){
+       table[p+1, q+1] <- arima(data, order = c(p, 0, q))$aic
+    }
+  }
+  dimnames(table) <- list(paste("<b> AR", 0:P, "</b>", sep = ""), paste("MA", 0:Q, sep = ""))
+  return(table)
+}
+temp.aic <- aic.table(x$Low, 4, 4)
+kable(temp.aic, digits = 2)
+```
+
+We may see from that table that ARMA(0,0) model has the lowest AIC value. It is a white noise model in form of $Y_n =\mu+ \epsilon_n$ which assumes no correlation or dependence among data in different years. However:
+
+- the distribution of white noise is still unclear. It could be normal or something else.
+- it does not guarantee that the ARMA(0,0) model is the only best option for our data. 
+
+## ARMA(0,0)
+
+```{r}
+arma00 = arima(x$Low, order = c(0,0,0))
+qqnorm(arma00$residuals, main = "QQ-Plot: Residuals of ARMA(0,0)")
+qqline(arma00$residuals)
+```
+
+The QQ-plot of the residuals of ARMA(0,0) model indicates that the residuals may follow a normal distribution, but it does not rule out the possibility that the variance of the data change over time.
+
+Another thing discovered by the QQ-plot is that there exists a lot of same errors, which further indicates that many data points in our Low temperature data have same values. 
+
+```{r results='hide'}
+length(unique(x$Low))
+```
+
+Upon further inspection, it turns out that in 124 years, there are only 36 unique values recorded for Low temperatures, and all values' decimal point is 0 except a record of 1.9F. It might be caused by the limitation of accuracy of the data itself. Nonetheless, it indicates that the data is not completely continuous but mostly integers. Unfortunately we cannot improve our analysis based on this discovery, and we have to be cautious giving floated values for forecasting, as the significant figures might be meaningless.
+
+```{r}
+arma00_residuals = arma00$residuals
+var.test(arma00_residuals[1:80], arma00_residuals[81:124], alternative = "two.sided")
+```
+
+By eyeballing, we decide that the change of variance may happen around the year 1980, so we performed F test[6] to compare the variance of residuals for ARMA(0,0) model before 1980 and after 1980. The test indicates that the two variances are significantly different. We thus fit two ARMA(0,0) models for each part of the data:
+
+```{r results='hide'}
+arma00_pre_1980 = arima(x$Low[1:80], order = c(0,0,0))
+arma00_post_1980 = arima(x$Low[80:124], order = c(0,0,0))
+arma00_pre_1980
+arma00_post_1980
+```
+
+The first 80 years fit into a ARMA(0,0) model of Gaussian White Noise with intercept($\mu$)=-3.2 and variance($\sigma^2$)=40, while the last 44 years into a ARMA(0,0) model of Gaussian White Noise with intercept($\mu$)=-2.4 and variance($\sigma^2$)=82
+
+## ARMA(p,q)
+
+We try to fit the data with other ARMA models close to ARMA(0,0). ARMA(0,1), ARMA(1,0), and ARMA(1,1) are the candidates. The results of the four models are shown below:
+
+```{r}
+orders = list(c(0,0,0), c(0,0,1), c(1,0,0), c(1,0,1))
+table <- matrix(NA, 4, 4)
+for(r in 1:4){
+  arma.tmp <- arima(x$Low, order = orders[[r]])
+  table[r, 1] <- round(arma.tmp$coef["intercept"],3)
+  table[r, 2] <- round(sqrt(arma.tmp$var.coef["intercept", "intercept"]),3)
+  table[r, 3] <- round(arma.tmp$coef["ar1"],3)
+  if(is.na(table[r, 3])) table[r, 3] <- "--"
+  table[r, 4] <- round(arma.tmp$coef["ma1"],3)
+  if(is.na(table[r, 4])) table[r, 4] <- "--"
+}
+dimnames(table) <- list(c("<b> ARMA(0, 0)", "<b> ARMA(0, 1)", "<b> ARMA(1, 0)", "<b> ARMA(1, 1)"), c("Intercept", "SE(Intercept)", "AR Coef.", "MA Coef."))
+kable(table)
+```
+
+(I referred to the [w22 hw3 code](https://github.com/ionides/531w22/tree/main/hw03)[7] for the table generation)
+
+All models give similar estimates for the intercept, while ARMA(1,1) gives a slightly different intercept with a larger standard error. In general, we may see that the standard error increases with the complexity of the model. 
+
+The coefficients for ARMA(1,0) and ARMA(0,1) models are too small. Should we opt for ARMA(1,1) model? We may compare the ARMA(0,0) and ARMA(1,1) models. ARMA(0,0), with its coefficients, can be written as:
+
+$$
+Y_N = -2.831+\epsilon_n
+$$
+
+and ARMA(1,1) as:
+
+$$
+\phi(B)(Y_n+2.845)=\psi(B)\epsilon_n
+$$
+
+where B is the backshift operator ($BY_n=Y_{n-1}$), and $\phi(B)$ $\psi(B)$ are the AR and MA polynomials:
+
+\begin{eqnarray}
+\phi(x) &=& 1-0.839x
+\\
+\psi(x) &=& 1-0.818x
+\end{eqnarray}
+
+Considering these two polynomials, we may see that the roots are really close to each other (1.19 and 1.22). Although roots outside the unit circle implies causality and invertibility, having roots too close means that this ARMA(1,1) is reducible to a ARMA(0,0) model. 
+
+To be sure of this, we may conduct a hypothesis test using Wilks' Theorem. The null hypothesis corresponds to ARMA(0,0) model, and the alternative corresponds to ARMA(1,1). We have:
+
+$$
+\Lambda = 2(\mathcal{l}_1 - \mathcal{l}_0) \approx \chi^2_{D_1-D_0}
+$$
+Where $\mathcal{l}_i$ is the maximum log likelihood under hypothesis i, and $D_1-D_0=2$ as the difference of numbers of parameters two models have. 
+
+```{r results='hide'}
+arma11 <- arima(x$Low, order = c(1,0,1))
+qchisq(0.95, 2) <= 2*(arma11$loglik - arma00$loglik)
+```
+The test statistics show no significance to reject the null hypothesis under 95% confidence level, so we opt for the simpler model provided, ARMA(0,0)
+
+## Other possible trend in ARMA(0,0)
+
+We look for possible non-linear polynomial trends. Suppose the trend exist, the data would follow this model:
+
+$$
+Y_n=\sum_{k=0}^K \beta_k n^k + \epsilon_n
+$$
+
+when K=0, it's the same ARMA(0,0) model with Gaussian White Noise. We compared the AIC for models with K from 0 to 5
+
+```{r}
+lm0 <- lm(Low~1,data=x)
+lm1 <- lm(Low~Year,data=x)
+lm2 <- lm(Low~Year+I(Year^2),data=x)
+lm3 <- lm(Low~Year+I(Year^2)+I(Year^3),data=x)
+lm4 <- lm(Low~Year+I(Year^2)+I(Year^3)+I(Year^4),data=x)
+lm5 <- lm(Low~Year+I(Year^2)+I(Year^3)+I(Year^4)+I(Year^5),data=x)
+poly_aic <- matrix( c(AIC(lm0),AIC(lm1),AIC(lm2),AIC(lm3),AIC(lm4),AIC(lm5)), nrow=1,
+   dimnames=list("<b>AIC</b>", paste0("K=",0:5)))
+kable(poly_aic,digits=1)
+```
+
+We may see that there is no clear evidence showing any model with trend is better than ARMA(0,0).
+
+## Comments and Conclusions
+
+- it is surprising to see ARMA(0,0) model fits a temperature data well
+
+- it could be explained that it is because the data only recorded the low temperature in January, which may be less likely to have correlations among the years. 
+
+- we also discovered that the variance may have increased from sometime around 1980, showing the data may not be stationary white noise as its variance change through out the years.
+
+# Global data
+
+```{r}
+global <- read.table(file="http://ionides.github.io/531w24/hw03/Global_Temperature.txt",header=TRUE)
+plot(Annual~Year,data=global,type="l")
+```
+The global data:
+
+- unlike Ann Arbor data, is likely to have a trend
+- contains more records, with temperatures included before the year 1900
+- is more accurate in terms of Significant Figures
+- it is important to point out the data does not record the actual temperature but the difference from an overall mean.
+- a lower value in global annual anomaly indicates a relatively cold year, and a higher value indicates a hotter year.
+
+We may plot the two data together, with anomaly data multiplied to some degree.
+
+```{r}
+plot(Low~Year,data=x[1:122, ],type="l")
+lines(global$Year[21:142],global$Annual[21:142]*10*9/5,col="red",lty="dashed")
+```
+In the plot, the black line is the Low temperature data of Ann Arbor, and the red line is the anomaly data times 18. We may see that the two data have similar trend before 1960s, meaning some cold January in Ann Arbor coincide with global pattern. However, we may not draw any concrete inference from this, as Low temperatures do not fully describe the temperature of January, and are certainly not a good indicator for the whole year as we know nothing about high temperatures and weather in other months. Also, Ann Arbor is just a tiny little town compared to a global level data. 
+
+As we already discussed, Ann Arbor data shows no clear trend, so when the Anomaly data increases after 1970s, the two data do not match at all. But it may be able to explain the increase of variance in the Ann Arbor data after 1980, which may be caused by some more extreme weather on a global scale.
+
+# Referrence
+- [1] https://www.usclimatedata.com/climate/ann-arbor/michigan/united-states/usmi0028
+- [2] https://medium.com/@aaabulkhair/data-imputation-demystified-time-series-data-69bc9c798cb7
+- [3] https://stat.ethz.ch/R-manual/R-devel/library/stats/html/arima.html
+- [4] https://search.r-project.org/CRAN/refmans/funtimes/html/notrend_test.html
+- [5] https://en.wikipedia.org/wiki/Akaike_information_criterion
+- [6] http://www.sthda.com/english/wiki/f-test-compare-two-variances-in-r
+- [7] https://github.com/ionides/531w22/tree/main/hw03
+
+
+

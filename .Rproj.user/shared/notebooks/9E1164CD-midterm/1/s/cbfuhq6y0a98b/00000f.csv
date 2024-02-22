@@ -1,0 +1,1 @@
+"0","plot(model_95$residuals,main='Residuals - Model 95',ylab='Residuals',xlab='Month')"

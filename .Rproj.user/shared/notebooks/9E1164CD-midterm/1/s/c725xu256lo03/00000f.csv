@@ -1,0 +1,1 @@
+"0","plot(diff(log(bev$BEV)), type='l', main = 'Log Differences of Car Sales', ylab = 'Differences of Logs')"

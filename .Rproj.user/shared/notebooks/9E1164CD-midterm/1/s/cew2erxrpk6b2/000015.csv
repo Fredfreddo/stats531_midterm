@@ -1,0 +1,2 @@
+"0","prediction_log = forecast(model_95, h=6)"
+"0","plot(prediction_log)"

@@ -1,0 +1,6 @@
+"0","test_stat <- model_95$loglik - model_best$loglik"
+"0","print(1-pchisq(2*test_stat, 9))"
+"1","[1]"
+"1"," 2.053492e-07"
+"1","
+"

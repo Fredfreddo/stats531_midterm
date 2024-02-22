@@ -1,0 +1,6 @@
+"0","ff <- forecast(model_95, h = 6)"
+"0","ff$x <- exp(ff$x)"
+"0","ff$mean <- exp(ff$mean)"
+"0","ff$lower <- exp(ff$lower)"
+"0","ff$upper <- exp(ff$upper)"
+"0","plot(ff)"

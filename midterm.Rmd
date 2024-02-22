@@ -1,0 +1,223 @@
+---
+title: "midterm"
+author: '3'
+date: "2024-02-21"
+output:
+  html_document:
+    toc: true
+    df_print: paged
+    toc_float:
+      collapsed: True
+      smooth_scroll: True
+    theme: flatly
+    highlight: tango
+    code_folding: hide
+  rmarkdown::html_document:
+    toc: true
+    toc_float:
+      collapsed: true
+      smooth_scroll: true
+    theme: flatly
+    highlight: tango
+    code_folding: hide
+---
+
+```{r setup, include=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+## Title, intro?
+
+```{r}
+raw = read.csv('Electric_Vehicle_Sales_Data.csv')
+```
+
+## Motivation
+
+One major component of the industrial economy here in the United States and around the world is the automotive industry. An exciting development in that industry, one with potential to have a salutary impact on the environment, is the shift toward electric vehicles. Prior to 2012, electric vehicle sales were almost negligible. In the year 2011, a total of 17,763 "plug-in" vehicles - either fully battery powered or plug-in hybrid - were sold in the United States. In 2023, there were 1.5 million such vehicles sold. Such a shift in the fueling of transportation has significant ramifications for our collective energy needs for future decades. Most immediately, it likely augurs a decline in demand for petroleum and an increase in demand for electricity. It's easy to see that there are many entities and industries that would have a significant interest in the trend of electric vehicle sales. The purpose of this project is to analyze the trend in the sales of battery powered vehicles in the United States. 
+
+## The Data
+
+The data comes from *Argonne National Laboratory * ^[https://www.anl.gov/esia/light-duty-electric-drive-vehicles-monthly-sales-updates] which they compiled from a number of different sources. The dataset contains, for each month and year, the total number of battery-powered vehicles (*BEV*), plug-in hybrid (*PHEV*), hybrid-electric vehicles (*HEV*), and the total number of light-duty vehicles sold (*LDV*). The dataset appears to be complete and without any apparent missing value or wrong entries. The sales figures are recorded from December of 2010 through January of 2024. 
+
+```{r}
+#install.packages(c('zoo', 'knitr'))
+library(zoo)
+
+ev_sales <- read.csv('Electric_Vehicle_Sales_Data.csv')
+#print(c(length(as.Date(as.yearmon(ev_sales$Month, format='%y-%b'))), length(ev_sales$BEV)))
+ev_sales$Date <- as.Date(as.yearmon(ev_sales$Month, format='%b-%y'))
+#head(ev_sales)
+bev <- ev_sales[1:157,c(2, 6)]
+plot(bev$Date,bev$BEV, type='l', main = 'Monthly EV Car Sales', xlab = 'Date', ylab = 'EV Units Sold')
+```
+
+## Exploratory Data Analysis
+
+A graph of sales over time (Figure ), shows a strong and increasingly positive trend in the sales amounts. The increasingly positive slope becomes particularly apparent after 2016. Not unexpectedly, there is a noticeable dip in the early months of 2020, presumably the effects of COVID shutdows on many different parts of the automotive supply chain. There is no apparent heteroscedasticity that can be seen in the line plot.
+
+```{r}
+plot(bev$Date, log(bev$BEV), type = 'l', main = 'Plot of Car Sales (Log)', xlab='Date',  ylab='Car Sales (Log)')
+```
+
+```{r}
+plot(diff(log(bev$BEV)), type='l', main = 'Log Differences of Car Sales', ylab = 'Differences of Logs')
+```
+
+# Model Exploration
+
+To explore a large amount of different ARMA models, we generated a table that would create ARMA models with varying values of p and q. We used AIC values first from the various models to help identify good candidates to further analyze. These ARMA(p,q) models will be fit according to equation [M9] on slide 13 in lecture 4:
+
+$$Y_n = \mu + \phi_1Y_{n-1} + \phi_2Y_{n-2} + \cdot\cdot\cdot +\phi_pY_{n-p}+\epsilon_n +\psi_1\epsilon_{n-1} + \psi_2\epsilon_{n-2} + \cdot\cdot\cdot + \psi_q\epsilon_{n-q} $$
+
+Where $\mu$ is the mean, ${\epsilon_n}$ is a white noise process, which we assume to follow a normal distribution with mean = 0, and variance = $\sigma^2$ slide 3 in source lecture 4. The vectors $(\phi_1,...,\phi_p)$ and $(\psi_1,...,\psi_q)$ correspond to the learned auto regressive and moving average coefficients respectively (slides 11-12 in lecture 4). After fitting models with p values up to 4, and q values up to 5, I created the table with Akaike's Information Criteria values according to the formula given on slide 21 in lecture 5. $$AIC = -2 \times \ell(\theta^*) + 2D $$ where $\ell$ is the log likelihood and D is the number of parameters in the model. Because of the exponential trend in our data, we tried both a raw fit as well as a fit on log transformed data.
+
+```{r}
+acf(diff(log(bev$BEV)), lag.max=50)
+```
+
+```{r eval = FALSE}
+library(knitr)
+aic_table <- function(data,P,Q){ 
+  table <- matrix(NA,(P+1),(Q+1)) 
+  for(p in 0:P) {
+    for(q in 0:Q) {
+    try(table[p+1,q+1] <- arima(data,order=c(p,1,q), method='ML')$aic)
+    } 
+  }
+  dimnames(table) <- list(paste("AR",0:P, sep=""),
+    paste("MA",0:Q,sep=""))
+  table
+}
+aic_table2 <- aic_table(log(bev$BEV),12,12)
+
+kable(aic_table2,digits=2)
+```
+
+```{r}
+spectrum(diff(log(bev$BEV)), spans=c(4,4))
+```
+
+```{r}
+s = spectrum(diff(log(bev$BEV)), method = 'ar')
+print(s$freq[which.max(s$spec)])
+```
+
+## Model Results and Analysis
+
+```{r}
+model_1 <- arima(log(bev$BEV), order=c(10,1,6), method='ML')
+model_1
+```
+
+```{r}
+model_95 = arima(log(bev$BEV), order= c(9,1,5), method='ML')
+```
+
+```{r}
+test_stat <- model_1$loglik - model_95$loglik
+print(1-pchisq(2*test_stat, 2))
+```
+
+```{r}
+AR_roots <- polyroot(c(1,-coef(model_95)[c("ar1", 'ar2', "ar3", 'ar4', "ar5", 'ar6' ,"ar7", 'ar8' ,"ar9")]))
+MA_roots <- polyroot(c(1,coef(model_95)[c("ma1", 'ma2', 'ma3' ,'ma4', 'ma5')]))
+print(Mod(AR_roots))
+print(Mod(MA_roots))
+```
+
+```{r eval = FALSE}
+aic_table2 <- function(data,P,Q){ 
+  table <- matrix(NA,(P+1),(Q+1)) 
+  for(p in 0:P) {
+    for(q in 0:Q) {
+    try(table[p+1,q+1] <- arima(data,order=c(p,2,q), method='ML')$aic)
+    } 
+  }
+  dimnames(table) <- list(paste("AR",0:P, sep=""),
+    paste("MA",0:Q,sep=""))
+  table
+}
+aic_table22 <- aic_table2(log(bev$BEV),12,12)
+
+kable(aic_table22,digits=2)
+```
+
+```{r}
+plot(bev$Date, -resid(model_95) + log(bev$BEV), type='l', col='blue')
+lines(bev$Date, log(bev$BEV), col='black')
+legend('topleft', legend=c('Fitted Arima', 'Ground Truth'), col=c('blue','black'),lty=1)
+```
+
+```{r}
+plot(bev$Date, exp(-resid(model_95) + log(bev$BEV)), type='l', col='blue', main='Plot of Fitted vs. True Values',
+     xlab='Date', ylab='Number of Vehicles Sold (by Month)')
+lines(bev$Date, exp(log(bev$BEV)), col='black')
+legend('topleft', legend=c('Fitted Arima', 'Ground Truth'), col=c('blue','black'),lty=1)
+```
+
+```{r}
+plot(model_95$residuals,main='Residuals - Model 95',ylab='Residuals',xlab='Month')
+```
+
+```{r}
+acf(resid(model_95))
+```
+
+```{r}
+qqnorm(model_95$residuals)
+qqline(model_95$residuals)
+```
+
+```{r}
+hist(model_95$residuals, breaks=30)
+```
+
+```{r}
+model_2 <- arima(log(bev$BEV), order=c(9,1,5), seasonal=list(order=c(0,0,2), period=3), method='ML')
+model_2
+```
+
+```{r}
+library(forecast)
+model_best <- auto.arima(log(bev$BEV), max.p=15, max.q=15, d=1, D=3, seasonal=TRUE)
+summary(model_best)
+```
+
+```{r}
+test_stat <- model_95$loglik - model_best$loglik
+print(1-pchisq(2*test_stat, 9))
+```
+
+```{r}
+dc <- decompose(ts(log(bev$BEV), frequency=3))
+plot(dc)
+```
+
+## Comparison with all LDV Sales
+
+```{r}
+all_sales = ev_sales[,2:6]
+all_sales['ratio'] =  all_sales$BEV / all_sales$Total.LDV
+plot(all_sales$Date, all_sales$Total.LDV, type='l')
+```
+
+## Prediction
+
+```{r}
+prediction_log = forecast(model_95, h=6)
+plot(prediction_log)
+```
+
+
+```{r}
+ff <- forecast(model_95, h = 6)
+ff$x <- exp(ff$x)
+ff$mean <- exp(ff$mean)
+ff$lower <- exp(ff$lower)
+ff$upper <- exp(ff$upper)
+plot(ff)
+```
+
+
+

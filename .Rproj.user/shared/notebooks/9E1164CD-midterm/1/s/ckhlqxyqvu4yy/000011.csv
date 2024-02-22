@@ -1,0 +1,1 @@
+"0","plot(bev$Date, log(bev$BEV), type = 'l', main = 'Plot of Car Sales (Log)', xlab='Date',  ylab='Car Sales (Log)')"

@@ -1,0 +1,1 @@
+"0","hist(model_95$residuals, breaks=30)"

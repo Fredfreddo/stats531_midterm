@@ -1,0 +1,3 @@
+"0","all_sales = ev_sales[,2:6]"
+"0","all_sales['ratio'] =  all_sales$BEV / all_sales$Total.LDV"
+"0","plot(all_sales$Date, all_sales$Total.LDV, type='l')"

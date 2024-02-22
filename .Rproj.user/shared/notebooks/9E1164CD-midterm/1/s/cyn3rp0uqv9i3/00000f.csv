@@ -1,0 +1,1 @@
+"0","model_95 = arima(log(bev$BEV), order= c(9,1,5), method='ML')"

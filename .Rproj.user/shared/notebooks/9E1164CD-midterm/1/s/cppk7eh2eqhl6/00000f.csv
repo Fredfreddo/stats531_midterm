@@ -1,0 +1,22 @@
+"0","aic_table2 <- function(data,P,Q){ "
+"0","  table <- matrix(NA,(P+1),(Q+1)) "
+"0","  for(p in 0:P) {"
+"0","    for(q in 0:Q) {"
+"0","    try(table[p+1,q+1] <- arima(data,order=c(p,2,q), method='ML')$aic)"
+"0","    } "
+"0","  }"
+"0","  dimnames(table) <- list(paste(""AR"",0:P, sep=""""),"
+"0","    paste(""MA"",0:Q,sep=""""))"
+"0","  table"
+"0","}"
+"0","aic_table22 <- aic_table2(log(bev$BEV),12,12)"
+"2","Error in optim(init[mask], armafn, method = optim.method, hessian = TRUE,  : 
+  non-finite finite-difference value [9]
+"
+"2","Error in optim(init[mask], armafn, method = optim.method, hessian = TRUE,  : 
+  non-finite finite-difference value [1]
+"
+"2","Error in optim(init[mask], armafn, method = optim.method, hessian = TRUE,  : 
+  non-finite finite-difference value [1]
+"
+"0","kable(aic_table22,digits=2)"

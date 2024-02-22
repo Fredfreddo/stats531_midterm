@@ -1,0 +1,1 @@
+"0","lines(bev$Date, exp(log(bev$BEV)), col='black')"

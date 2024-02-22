@@ -1,0 +1,2 @@
+"0","plot(bev$Date, exp(-resid(model_95) + log(bev$BEV)), type='l', col='blue', main='Plot of Fitted vs. True Values',"
+"0","     xlab='Date', ylab='Number of Vehicles Sold (by Month)')"

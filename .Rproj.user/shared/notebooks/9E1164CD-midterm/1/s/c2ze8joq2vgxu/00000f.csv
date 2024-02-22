@@ -1,0 +1,2 @@
+"0","dc <- decompose(ts(log(bev$BEV), frequency=3))"
+"0","plot(dc)"
