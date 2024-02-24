@@ -2,9 +2,7 @@
 title: "Analysis of Battery-Powered Electric Vehicles Sales in the United States"
 subtitle: "A STATS 531 24W Midterm Project"
 author: 
-- 'Fangqing Yuan (fangqing)'
-- 'Nathan Rosenfeld (nrosenfe)'
-- 'Stephen Blough (bloughst)'
+- "Hided for blinded version"
 date: "2024-Feb"
 output:
   html_document:
@@ -408,13 +406,7 @@ We analyzed the Battery Electric Vehicles monthly sales in the United States fro
 
 ## Contribution
 
-Our group meet regularly on zoom for discussions. We used [deepnote](https://deepnote.com/) ^[https://deepnote.com/] and a private github repo to write analysis, run code, debug, and update together. Individually:
-
-- Stephen found the data source, cleaned the data, defined the hypothesis testing, visualized the fitted values and periodogram, and produced the code in general.
-
-- Nathan was in charge of writing the introduction, motivation, and some of the explanations.
-
-- Fangqing assisted on data cleaning, produced the code of SARMA, forecasting, decomposition, and was in charge of integrating the code and text into formatted rmd and html. 
+Hided for blinded version.
 
 We referred to project 14 of W22 ^[https://github.com/ionides/531w22/tree/main/midterm_project/project14] for .rmd formatting tips.
 
